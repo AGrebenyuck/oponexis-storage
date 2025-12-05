@@ -1,14 +1,121 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ENUMS =====
+
+enum TireBatchType {
+  STOCK // наши шины на продажу
+  STORAGE // клиентская резина на хранении
+}
+
+enum TireSeason {
+  SUMMER
+  WINTER
+  ALL_SEASON
+}
+
+enum MovementType {
+  IN // приход
+  OUT // расход/продажа
+  SCRAP // утилизация
+  MOVE // перемещение
+}
+
+// ===== MODELS =====
+
+model TireBatch {
+  id String @id @default(cuid())
+
+  type TireBatchType
+
+  // Размеры
+  rimDiameter Int // 17, 18...
+  width       Int? // 205
+  height      Int? // 55 (профиль)
+
+  season TireSeason?
+
+  brand String? // Michelin
+  model String? // Hakkapeliitta R3
+
+  condition String? // "5 мм протектора, без шишек"
+
+  // Кол-во (для складских партий)
+  quantityTotal     Int // сколько всего было изначально
+  quantityAvailable Int // сколько осталось сейчас
+
+  // Цены (для STOCK)
+  pricePerTire Int? // цена за штуку
+  pricePerSet  Int? // цена за комплект
+
+  // Для хранения (клиентская резина)
+  storageOwnerName  String? // имя владельца
+  storageOwnerPhone String? // телефон владельца
+  storageStartedAt  DateTime? // когда приняли на хранение
+  storageExpiresAt  DateTime? // плановая дата окончания хранения
+
+  // Локация на складе
+  locationCode String? // "A-3-2"
+
+  // Флаг, что фото нужно обновить
+  photoNeedsUpdate Boolean @default(false)
+
+  productionYear Int?
+
+  notes String?
+
+  photos    TirePhoto[]
+  movements TireMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TirePhoto {
+  id String @id @default(cuid())
+
+  batch   TireBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId String
+
+  url      String // link do zdjęcia w Cloudinary
+  publicId String? // <-- ДОБАВИЛИ: public_id z Cloudinary (np. "oponexis_tires/abc123")
+  isMain   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model TireMovement {
+  id String @id @default(cuid())
+
+  batch   TireBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId String
+
+  type   MovementType
+  amount Int // +4, -2 и т.п.
+  reason String?
+
+  createdAt DateTime @default(now())
+}
+
+model TelegramDialog {
+  id             String   @id @default(cuid())
+  telegramUserId String
+  chatId         String
+  mode           String // 'CREATE_BATCH' | 'EDIT_BATCH' и т.п.
+  step           Int
+  data           Json // промежуточные ответы пользователя
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([telegramUserId, isActive])
+  @@index([chatId, isActive])
 }
