@@ -1,11 +1,44 @@
 // app/login/LoginPageInner.jsx
 'use client'
 
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 
 export default function LoginPageInner() {
+	const [password, setPassword] = useState('')
+	const [error, setError] = useState(null)
+	const [loading, setLoading] = useState(false)
+
+	const router = useRouter()
 	const searchParams = useSearchParams()
-	const error = searchParams.get('error') // пример
+	const redirect = searchParams.get('redirect') || '/batches'
+
+	async function handleSubmit(e) {
+		e.preventDefault()
+		setError(null)
+		setLoading(true)
+
+		try {
+			const res = await fetch('/api/login', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ password }),
+			})
+
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}))
+				throw new Error(data.error || 'Nie udało się zalogować')
+			}
+
+			// успех → уходим туда, откуда нас выкинул middleware
+			router.push(redirect)
+		} catch (err) {
+			console.error('Login error:', err)
+			setError(err.message)
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	return (
 		<div className='min-h-screen flex items-center justify-center bg-slate-950'>
@@ -20,24 +53,32 @@ export default function LoginPageInner() {
 					</div>
 				)}
 
-				{/* тут твоя форма логина */}
-				<form className='space-y-3'>
+				<form onSubmit={handleSubmit} className='space-y-3'>
 					<div className='space-y-1'>
 						<label className='block text-xs text-slate-300'>Hasło</label>
 						<input
 							type='password'
 							name='password'
+							value={password}
+							onChange={e => setPassword(e.target.value)}
 							className='w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-50'
+							placeholder='••••••'
 						/>
 					</div>
 
 					<button
 						type='submit'
-						className='mt-2 w-full rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-emerald-950 hover:bg-emerald-400'
+						disabled={loading || !password}
+						className='mt-2 w-full rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-emerald-950 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed'
 					>
-						Zaloguj się
+						{loading ? 'Logowanie...' : 'Zaloguj się'}
 					</button>
 				</form>
+
+				<p className='mt-3 text-[11px] text-slate-500'>
+					Po poprawnym logowaniu zostaniesz przeniesiony do:{' '}
+					<span className='font-mono break-all'>{redirect}</span>
+				</p>
 			</div>
 		</div>
 	)

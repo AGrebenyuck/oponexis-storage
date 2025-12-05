@@ -1,29 +1,39 @@
 // app/api/login/route.js
-
 import { NextResponse } from 'next/server'
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD // можно забрать из env
+
 export async function POST(request) {
-	const { password } = await request.json()
+	try {
+		const body = await request.json().catch(() => ({}))
+		const { password } = body
 
-	const adminPassword = process.env.ADMIN_PASSWORD
+		if (!password || password !== ADMIN_PASSWORD) {
+			return NextResponse.json(
+				{ error: 'Nieprawidłowe hasło' },
+				{ status: 401 }
+			)
+		}
 
-	if (!adminPassword) {
-		console.warn('[login] Brak ADMIN_PASSWORD w zmiennych środowiskowych.')
+		const res = NextResponse.json({ ok: true })
+
+		// простая cookie, которой будет проверять middleware
+		res.cookies.set({
+			name: 'storage_admin',
+			value: '1',
+			httpOnly: true,
+			sameSite: 'lax',
+			secure: process.env.NODE_ENV === 'production',
+			path: '/',
+			maxAge: 60 * 60 * 24 * 30, // 30 dni
+		})
+
+		return res
+	} catch (err) {
+		console.error('[api/login] error:', err)
+		return NextResponse.json(
+			{ error: 'Wewnętrzny błąd logowania' },
+			{ status: 500 }
+		)
 	}
-
-	if (!password || password !== adminPassword) {
-		return NextResponse.json({ error: 'Nieprawidłowe hasło.' }, { status: 401 })
-	}
-
-	const res = NextResponse.json({ success: true })
-
-	res.cookies.set('admin_auth', '1', {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === 'production',
-		maxAge: 60 * 60 * 24 * 30, // 30 dni
-		path: '/',
-		sameSite: 'lax',
-	})
-
-	return res
 }

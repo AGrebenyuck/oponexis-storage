@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import LoginPageInner from './LoginPageInner'
 
-export const dynamic = 'force-dynamic' // опционально, чтобы не пререндерить
+export const dynamic = 'force-dynamic'
 
 export default function LoginPage() {
 	return (

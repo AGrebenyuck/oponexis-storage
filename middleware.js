@@ -2,26 +2,39 @@
 import { NextResponse } from 'next/server'
 
 export function middleware(req) {
-	const { pathname } = req.nextUrl
+	const { pathname, search } = req.nextUrl
 
-	// защищаем только страницы админки
-	const isProtected = pathname.startsWith('/batches')
-
-	if (!isProtected) {
+	// Разрешаем эти пути без логина
+	if (
+		pathname.startsWith('/login') ||
+		pathname.startsWith('/api/telegram') ||
+		pathname.startsWith('/_next') ||
+		pathname === '/favicon.ico'
+	) {
 		return NextResponse.next()
 	}
 
-	const auth = req.cookies.get('admin_auth')?.value
+	// Что считаем защищённым
+	const needsAuth = pathname.startsWith('/batches') || pathname === '/' // корень панели и список партий
 
-	if (auth === '1') {
+	if (!needsAuth) {
 		return NextResponse.next()
 	}
 
+	const session = req.cookies.get('storage_admin')?.value
+
+	if (session === '1') {
+		// авторизован — пропускаем
+		return NextResponse.next()
+	}
+
+	// Не авторизован — кидаем на /login с redirect
 	const loginUrl = new URL('/login', req.url)
-	loginUrl.searchParams.set('from', pathname)
+	loginUrl.searchParams.set('redirect', pathname + (search || ''))
 	return NextResponse.redirect(loginUrl)
 }
 
 export const config = {
-	matcher: ['/batches/:path*'],
+	// ловим всё, кроме статики
+	matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
