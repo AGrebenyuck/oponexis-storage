@@ -77,3 +77,92 @@ export async function DELETE(_request, { params }) {
 		)
 	}
 }
+
+export async function PATCH(request, { params }) {
+	// 🔹 то же самое здесь
+	const { id } = await params
+
+	if (!id) {
+		return NextResponse.json(
+			{ ok: false, error: 'Brak ID partii w adresie URL' },
+			{ status: 400 }
+		)
+	}
+
+	try {
+		const body = await request.json()
+
+		const {
+			type,
+			season,
+			brand,
+			model,
+			productionYear,
+			pricePerSet,
+			pricePerTire,
+			locationCode,
+			storageOwnerName,
+			storageOwnerPhone,
+			notes,
+		} = body || {}
+
+		const productionYearNum =
+			productionYear === '' || productionYear == null
+				? null
+				: Number(productionYear)
+
+		const pricePerSetNum =
+			pricePerSet === '' || pricePerSet == null ? null : Number(pricePerSet)
+
+		const pricePerTireNum =
+			pricePerTire === '' || pricePerTire == null ? null : Number(pricePerTire)
+
+		if (productionYearNum !== null && Number.isNaN(productionYearNum)) {
+			return NextResponse.json(
+				{ ok: false, error: 'Nieprawidłowy rok produkcji' },
+				{ status: 400 }
+			)
+		}
+
+		if (pricePerSetNum !== null && Number.isNaN(pricePerSetNum)) {
+			return NextResponse.json(
+				{ ok: false, error: 'Nieprawidłowa cena za komplet' },
+				{ status: 400 }
+			)
+		}
+
+		if (pricePerTireNum !== null && Number.isNaN(pricePerTireNum)) {
+			return NextResponse.json(
+				{ ok: false, error: 'Nieprawidłowa cena za sztukę' },
+				{ status: 400 }
+			)
+		}
+
+		const updated = await prisma.tireBatch.update({
+			where: { id: String(id) },
+			data: {
+				type: type || undefined,
+				season: season === '' ? null : season || undefined,
+				brand: brand ?? undefined,
+				model: model ?? undefined,
+				productionYear: productionYearNum,
+				pricePerSet: pricePerSetNum,
+				pricePerTire: pricePerTireNum,
+				locationCode: locationCode ?? undefined,
+				storageOwnerName:
+					storageOwnerName === '' ? null : storageOwnerName ?? undefined,
+				storageOwnerPhone:
+					storageOwnerPhone === '' ? null : storageOwnerPhone ?? undefined,
+				notes: notes ?? undefined,
+			},
+		})
+
+		return NextResponse.json({ ok: true, batch: updated }, { status: 200 })
+	} catch (err) {
+		console.error('[PATCH /api/batches/[id]] error:', err)
+		return NextResponse.json(
+			{ ok: false, error: err?.message || 'Update failed (server error)' },
+			{ status: 500 }
+		)
+	}
+}

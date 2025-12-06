@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import { prisma } from '../../../../lib/prisma'
 import UploadPhotoButton from '../UploadPhotoButton'
+import BatchEditForm from './BatchEditForm'
 import MovementForm from './MovementForm'
 import PhotoActions from './PhotoActions'
 
@@ -83,66 +85,16 @@ export default async function BatchDetailsPage({ params }) {
 						Zarządzanie zdjęciami i podstawowymi informacjami o partii.
 					</p>
 				</div>
-				<a
+				<Link
 					href='/batches'
 					className='text-xs text-slate-400 hover:text-slate-200 underline underline-offset-4'
 				>
 					← wróć do listy
-				</a>
+				</Link>
 			</div>
 
-			{/* Dane o partii */}
-			<div className='border border-slate-800 rounded-xl bg-slate-900/40 p-4 space-y-2 text-sm'>
-				<div className='flex flex-wrap gap-x-6 gap-y-1'>
-					<div>
-						<span className='text-slate-400'>Typ: </span>
-						<span className='text-slate-100'>{typeLabel}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Rozmiar: </span>
-						<span className='text-slate-100'>{sizeLabel || '—'}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Sezon: </span>
-						<span className='text-slate-100'>{seasonLabel}</span>
-					</div>
-					{/* 🆕 Rok produkcji */}
-					<div>
-						<span className='text-slate-400'>Rok produkcji: </span>
-						<span className='text-slate-100'>{yearLabel}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Marka / model: </span>
-						<span className='text-slate-100'>
-							{[batch.brand, batch.model].filter(Boolean).join(' ') || '—'}
-						</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>
-							Ilość (dostępne / całkowita):{' '}
-						</span>
-						<span className='text-slate-100'>{qtyLabel}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Cena: </span>
-						<span className='text-slate-100'>{priceLabel}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Właściciel: </span>
-						<span className='text-slate-100'>{ownerLabel}</span>
-					</div>
-					<div>
-						<span className='text-slate-400'>Lokalizacja: </span>
-						<span className='text-slate-100'>{batch.locationCode || '—'}</span>
-					</div>
-				</div>
-				{batch.notes && (
-					<p className='text-xs text-slate-400 pt-2'>
-						<span className='font-medium text-slate-300'>Notatki: </span>
-						{batch.notes}
-					</p>
-				)}
-			</div>
+			{/* Dane o partii – teraz jako formularz */}
+			<BatchEditForm batch={batch} />
 
 			{/* Zdjęcia */}
 			<div className='space-y-3'>
