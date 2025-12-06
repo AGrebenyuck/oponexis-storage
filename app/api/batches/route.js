@@ -1,7 +1,7 @@
 // app/api/batches/[id]/route.js
 
 import { NextResponse } from 'next/server'
-import { prisma } from '../../../../lib/prisma'
+import { prisma } from '../../../lib/prisma'
 
 // если нужно, можно добавить:
 export const dynamic = 'force-dynamic'
