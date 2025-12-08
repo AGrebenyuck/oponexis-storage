@@ -1,5 +1,6 @@
 'use client'
 
+import message from '../../../components/message'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -52,19 +53,20 @@ export default function CreateBatchForm() {
 		setError(null)
 		setIsSubmitting(true)
 
+		const payload = { ...form }
+
+		if (!payload.quantityAvailable && payload.quantityTotal) {
+			payload.quantityAvailable = payload.quantityTotal
+		}
+		if (!payload.productionYear) {
+			delete payload.productionYear
+		}
+
+		const close = message.loading('Tworzenie partii...', {
+			position: 'topRight',
+		})
+
 		try {
-			const payload = { ...form }
-
-			// jeśli ilość dostępna pusta – ustaw = całkowita
-			if (!payload.quantityAvailable && payload.quantityTotal) {
-				payload.quantityAvailable = payload.quantityTotal
-			}
-
-			// jeśli rok pusty – отправляем null, обработка на API
-			if (!payload.productionYear) {
-				delete payload.productionYear
-			}
-
 			const res = await fetch('/api/batches', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -78,8 +80,13 @@ export default function CreateBatchForm() {
 
 			const batch = await res.json()
 
-			// jeśli są pliki — ładujemy po kolei
+			// загрузка фоток
 			if (files.length > 0 && batch?.id) {
+				const uploadClose = message.loading(
+					`Przesyłanie zdjęć (${files.length})...`,
+					{ position: 'topRight' }
+				)
+
 				for (const file of files) {
 					const fd = new FormData()
 					fd.append('file', file)
@@ -93,14 +100,25 @@ export default function CreateBatchForm() {
 						console.error('Upload photo failed for file:', file.name)
 					}
 				}
+
+				uploadClose()
 			}
+
+			close()
+			message.success('Partia została utworzona ✅', 2, {
+				position: 'topRight',
+			})
 
 			setForm(initialState)
 			setFiles([])
 			router.refresh()
 		} catch (err) {
 			console.error('Create batch error:', err)
+			close()
 			setError(err.message)
+			message.error(err.message || 'Nie udało się utworzyć partii', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setIsSubmitting(false)
 		}

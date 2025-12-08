@@ -1,21 +1,25 @@
+// app/(admin)/batches/[id]/MovementForm.jsx
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import message from '../../../../components/message'
 
-export default function MovementForm({ batchId }) {
+export default function MovementForm({ batchId, quantityAvailable }) {
 	const [type, setType] = useState('OUT')
 	const [amount, setAmount] = useState('')
 	const [reason, setReason] = useState('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
-	const [error, setError] = useState(null)
 
 	const router = useRouter()
 
 	async function handleSubmit(e) {
 		e.preventDefault()
-		setError(null)
 		setIsSubmitting(true)
+
+		const close = message.loading('Zapisywanie ruchu...', {
+			position: 'topRight',
+		})
 
 		try {
 			const res = await fetch(`/api/batches/${batchId}/movements`, {
@@ -24,21 +28,34 @@ export default function MovementForm({ batchId }) {
 				body: JSON.stringify({ type, amount, reason }),
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Błąd zapisu ruchu magazynowego')
+				throw new Error(data?.error || 'Błąd zapisu ruchu magazynowego')
 			}
 
 			setAmount('')
 			setReason('')
+			close()
+			message.success('Ruch magazynowy zapisany ✅', 2, {
+				position: 'topRight',
+			})
 			router.refresh()
 		} catch (err) {
 			console.error('Movement error:', err)
-			setError(err.message)
+			close()
+			message.error(err.message || 'Błąd zapisu ruchu magazynowego', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setIsSubmitting(false)
 		}
 	}
+
+	const isOutLike = type === 'OUT' || type === 'SCRAP'
 
 	return (
 		<form
@@ -68,16 +85,28 @@ export default function MovementForm({ batchId }) {
 				</div>
 
 				<div className='space-y-1'>
-					<label className='block text-slate-300'>Ilość</label>
+					<label className='block text-slate-300'>
+						Ilość
+						{typeof quantityAvailable === 'number' && (
+							<span className='ml-1 text-[10px] text-slate-400'>
+								(dostępne: {quantityAvailable})
+							</span>
+						)}
+					</label>
 					<input
 						type='number'
 						min={1}
 						value={amount}
 						onChange={e => setAmount(e.target.value)}
-						required
+						required={type !== 'MOVE'} // для MOVE можно будет не указывать
 						className='w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-slate-50 text-xs'
 						placeholder='np. 2'
 					/>
+					{isOutLike && typeof quantityAvailable === 'number' && (
+						<p className='text-[10px] text-slate-500 mt-1'>
+							Maksymalnie możesz zdjąć: {quantityAvailable} szt.
+						</p>
+					)}
 				</div>
 
 				<div className='space-y-1 sm:col-span-1'>
@@ -99,7 +128,6 @@ export default function MovementForm({ batchId }) {
 				>
 					{isSubmitting ? 'Zapisuję...' : 'Zapisz ruch'}
 				</button>
-				{error && <p className='text-xs text-red-400'>{error}</p>}
 			</div>
 		</form>
 	)

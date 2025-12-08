@@ -1,36 +1,41 @@
+// app/(admin)/batches/UploadPhotoButton.jsx
 'use client'
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import message from '../../../components/message'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export default function UploadPhotoButton({ batchId }) {
 	const inputRef = useRef(null)
 	const [isUploading, setIsUploading] = useState(false)
-	const [error, setError] = useState(null)
 	const router = useRouter()
 
 	function handleClick() {
-		setError(null)
 		if (inputRef.current) {
 			inputRef.current.click()
 		}
 	}
 
-	const MAX_FILE_SIZE = 10 * 1024 * 1024
-
 	async function handleFileChange(e) {
 		const file = e.target.files?.[0]
 		if (!file) return
+
 		if (file.size && file.size > MAX_FILE_SIZE) {
-			alert(
-				`Plik "${file.name}" jest zbyt duży. Maksymalny rozmiar to 10 MB (limit Cloudinary).`
+			message.warning(
+				`Plik "${file.name}" jest zbyt duży. Maksymalny rozmiar to 10 MB.`,
+				4,
+				{ position: 'topRight' }
 			)
 			e.target.value = ''
 			return
 		}
 
 		setIsUploading(true)
-		setError(null)
+		const close = message.loading('Przesyłanie zdjęcia...', {
+			position: 'topRight',
+		})
 
 		try {
 			const formData = new FormData()
@@ -41,17 +46,28 @@ export default function UploadPhotoButton({ batchId }) {
 				body: formData,
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Błąd przesyłania zdjęcia')
+				throw new Error(data?.error || 'Błąd przesyłania zdjęcia')
 			}
 
-			// очищаем инпут, чтобы можно было выбрать тот же файл ещё раз при необходимости
+			close()
+			message.success('Zdjęcie zostało dodane ✅', 2, {
+				position: 'topRight',
+			})
+
 			e.target.value = ''
 			router.refresh()
 		} catch (err) {
 			console.error('Upload photo error:', err)
-			setError(err.message)
+			close()
+			message.error(err.message || 'Błąd przesyłania zdjęcia', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setIsUploading(false)
 		}
@@ -74,9 +90,6 @@ export default function UploadPhotoButton({ batchId }) {
 				className='hidden'
 				onChange={handleFileChange}
 			/>
-			{error && (
-				<span className='text-[10px] text-red-400 max-w-[140px]'>{error}</span>
-			)}
 		</div>
 	)
 }

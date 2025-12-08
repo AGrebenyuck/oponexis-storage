@@ -1,9 +1,110 @@
+// app/(admin)/batches/page.jsx
 import { prisma } from '../../../lib/prisma'
 import BatchesFilters from './BatchesFilters'
 import BatchRowActions from './BatchRowActions'
 import CreateBatchPanel from './CreateBatchPanel'
 
-// helper для подсветки совпадений w tekście
+/* ========= helpers для парсинга строки поиска ========= */
+
+function detectSeasonFromQuery(raw = '') {
+	const q = raw.toLowerCase()
+
+	if (/(lato|summer|лето)/.test(q)) return 'SUMMER'
+	if (/(zima|winter|зима)/.test(q)) return 'WINTER'
+	if (
+		/(całoroczne|caloroczne|all\s*season|4sezon|4 sezon|4season|4 seasons)/.test(
+			q
+		)
+	)
+		return 'ALL_SEASON'
+
+	return null
+}
+
+function detectYearFromQuery(raw = '') {
+	const m = raw.match(/\b(19|20)\d{2}\b/)
+	if (!m) return null
+	const year = parseInt(m[0], 10)
+	if (Number.isNaN(year)) return null
+	return year
+}
+
+function parseTireSizeFromQuery(raw = '') {
+	const q = raw.toLowerCase().replace(',', '.')
+	const result = {
+		width: null,
+		height: null,
+		rimDiameter: null,
+	}
+
+	// 205/55, 205-55, 205.55
+	const sizeMatch = q.match(/(\d{3})\s*[\/\\.,-]\s*(\d{2})/)
+	if (sizeMatch) {
+		result.width = parseInt(sizeMatch[1], 10)
+		result.height = parseInt(sizeMatch[2], 10)
+	}
+
+	// r17 / R17 / р17
+	const rimMatch = q.match(/[rр]\s*(\d{2})/)
+	if (rimMatch) {
+		result.rimDiameter = parseInt(rimMatch[1], 10)
+	}
+
+	// если нет width, берём первое трёхзначное (100–400)
+	if (!result.width) {
+		const widthMatch = q.match(/\b([1-3]\d{2}|400)\b/)
+		if (widthMatch) {
+			const w = parseInt(widthMatch[1], 10)
+			if (!Number.isNaN(w)) {
+				result.width = w
+			}
+		}
+	}
+
+	return result
+}
+
+/**
+ * Оставляем только "словесную" часть: бренд, модель, заметки, локация.
+ */
+function buildTextQuery(raw = '') {
+	const seasonWords = new Set([
+		'lato',
+		'summer',
+		'лето',
+		'zima',
+		'winter',
+		'зима',
+		'całoroczne',
+		'caloroczne',
+		'all',
+		'season',
+		'sezon',
+		'4sezon',
+		'4season',
+	])
+
+	const tokens = raw
+		.toLowerCase()
+		.split(/\s+/)
+		.map(t => t.trim())
+		.filter(Boolean)
+
+	const textTokens = tokens.filter(t => {
+		if (seasonWords.has(t)) return false
+		if (/^\d+$/.test(t)) return false
+		if (/^\d{3}[\/\\.,-]\d{2}$/.test(t)) return false
+		if (/^[rр]\d{2}$/.test(t)) return false
+		if (/^(19|20)\d{2}$/.test(t)) return false
+		return true
+	})
+
+	const text = textTokens.join(' ').trim()
+	return text || null
+}
+
+/* ========= helper для подсветки ========= */
+
 function highlightMatch(text, query) {
 	if (!query) return text
 	if (!text) return '—'
@@ -29,37 +130,62 @@ function highlightMatch(text, query) {
 	)
 }
 
+/* ========= основной запрос в БД ========= */
+
 async function getBatches(filters) {
-	const { type, season, q } = filters || {}
-	const where = {}
+	const { type, season: seasonFilter, q } = filters || {}
 
-	if (type) where.type = type
-	if (season) where.season = season
+	const baseWhere = {}
+	if (type) baseWhere.type = type
+	if (seasonFilter) baseWhere.season = seasonFilter
 
-	if (q) {
-		const trimmed = q.trim()
-		const numeric = parseInt(trimmed, 10)
-
-		where.OR = [
-			{ brand: { contains: trimmed, mode: 'insensitive' } },
-			{ model: { contains: trimmed, mode: 'insensitive' } },
-			{ notes: { contains: trimmed, mode: 'insensitive' } },
-			{ locationCode: { contains: trimmed, mode: 'insensitive' } },
-		]
-
-		if (!Number.isNaN(numeric)) {
-			where.OR.push(
-				{ rimDiameter: numeric },
-				{ width: numeric },
-				{ height: numeric },
-				// 🆕 szukamy też po roku produkcji
-				{ productionYear: numeric }
-			)
-		}
+	// если нет поисковой строки — только фильтры type/season из селектов
+	if (!q || !q.trim()) {
+		return prisma.tireBatch.findMany({
+			where: baseWhere,
+			include: {
+				photos: {
+					where: { isMain: true },
+					take: 1,
+				},
+			},
+			orderBy: { createdAt: 'desc' },
+		})
 	}
 
-	const batches = await prisma.tireBatch.findMany({
-		where,
+	const trimmed = q.trim()
+
+	const parsedSize = parseTireSizeFromQuery(trimmed)
+	const parsedSeason = detectSeasonFromQuery(trimmed)
+	const parsedYear = detectYearFromQuery(trimmed)
+	const textQuery = buildTextQuery(trimmed)
+
+	const where = { ...baseWhere }
+
+	// Сезон из строки, если не выбран в селекте
+	if (!seasonFilter && parsedSeason) {
+		where.season = parsedSeason
+	}
+
+	if (parsedSize.rimDiameter) where.rimDiameter = parsedSize.rimDiameter
+	if (parsedSize.width) where.width = parsedSize.width
+	if (parsedSize.height) where.height = parsedSize.height
+
+	if (parsedYear) where.productionYear = parsedYear
+
+	if (textQuery) {
+		where.OR = [
+			{ brand: { contains: textQuery, mode: 'insensitive' } },
+			{ model: { contains: textQuery, mode: 'insensitive' } },
+			{ notes: { contains: textQuery, mode: 'insensitive' } },
+			{ locationCode: { contains: textQuery, mode: 'insensitive' } },
+		]
+	}
+
+	const finalWhere = Object.keys(where).length === 0 ? baseWhere : where
+
+	return prisma.tireBatch.findMany({
+		where: finalWhere,
 		include: {
 			photos: {
 				where: { isMain: true },
@@ -70,9 +196,9 @@ async function getBatches(filters) {
 			createdAt: 'desc',
 		},
 	})
-
-	return batches
 }
+
+/* ========= сам компонент страницы ========= */
 
 export default async function BatchesPage({ searchParams }) {
 	const sp = await searchParams
@@ -85,6 +211,11 @@ export default async function BatchesPage({ searchParams }) {
 
 	const batches = await getBatches(filters)
 	const hasFilters = !!filters.q || !!filters.type || !!filters.season
+
+	// токены для подсветки
+	const parsedSize = parseTireSizeFromQuery(filters.q || '')
+	const parsedYear = detectYearFromQuery(filters.q || '')
+	const textQuery = buildTextQuery(filters.q || '')
 
 	return (
 		<div className='space-y-4'>
@@ -157,7 +288,6 @@ export default async function BatchesPage({ searchParams }) {
 								<th className='px-3 py-2 text-left'>Typ</th>
 								<th className='px-3 py-2 text-left'>Rozmiar</th>
 								<th className='px-3 py-2 text-left'>Sezon</th>
-								{/* 🆕 Rok produkcji */}
 								<th className='px-3 py-2 text-left'>Rok</th>
 								<th className='px-3 py-2 text-left'>Marka / model</th>
 								<th className='px-3 py-2 text-left'>Ilość</th>
@@ -217,6 +347,24 @@ export default async function BatchesPage({ searchParams }) {
 									? String(batch.productionYear)
 									: '—'
 
+								// токен для подсветки размера
+								let sizeHighlightToken = ''
+								if (parsedSize.width && parsedSize.height) {
+									sizeHighlightToken = `${parsedSize.width}/${parsedSize.height}`
+								} else if (parsedSize.rimDiameter) {
+									sizeHighlightToken = String(parsedSize.rimDiameter)
+								} else if (filters.q) {
+									sizeHighlightToken = filters.q
+								}
+
+								// токен для подсветки года
+								const yearHighlightToken = parsedYear
+									? String(parsedYear)
+									: filters.q
+
+								// токен для бренда/модели — текстовая часть
+								const brandHighlightToken = textQuery || filters.q
+
 								return (
 									<tr
 										key={batch.id}
@@ -244,17 +392,16 @@ export default async function BatchesPage({ searchParams }) {
 											{typeLabel}
 										</td>
 										<td className='px-3 py-2 align-middle text-sm font-medium text-slate-50'>
-											{highlightMatch(sizeLabel || '—', filters.q)}
+											{highlightMatch(sizeLabel || '—', sizeHighlightToken)}
 										</td>
 										<td className='px-3 py-2 align-middle text-xs text-slate-300'>
 											{seasonLabel}
 										</td>
-										{/* 🆕 Rok w tabeli */}
 										<td className='px-3 py-2 align-middle text-xs text-slate-300'>
-											{highlightMatch(yearLabel, filters.q)}
+											{highlightMatch(yearLabel, yearHighlightToken)}
 										</td>
 										<td className='px-3 py-2 align-middle text-sm text-slate-200'>
-											{highlightMatch(brandModelLabel, filters.q)}
+											{highlightMatch(brandModelLabel, brandHighlightToken)}
 										</td>
 										<td className='px-3 py-2 align-middle text-sm text-slate-200'>
 											{qtyLabel}
@@ -266,7 +413,10 @@ export default async function BatchesPage({ searchParams }) {
 											{ownerLabel}
 										</td>
 										<td className='px-3 py-2 align-middle text-xs text-slate-300'>
-											{highlightMatch(batch.locationCode || '—', filters.q)}
+											{highlightMatch(
+												batch.locationCode || '—',
+												brandHighlightToken
+											)}
 										</td>
 										<td className='px-3 py-2 align-middle text-xs'>
 											{batch.photoNeedsUpdate ? (

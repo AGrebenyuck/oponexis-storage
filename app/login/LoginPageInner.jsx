@@ -3,6 +3,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import message from '../../components/message'
 
 export default function LoginPageInner() {
 	const [password, setPassword] = useState('')
@@ -18,6 +19,10 @@ export default function LoginPageInner() {
 		setError(null)
 		setLoading(true)
 
+		const close = message.loading('Logowanie...', {
+			position: 'topCenter',
+		})
+
 		try {
 			const res = await fetch('/api/login', {
 				method: 'POST',
@@ -30,11 +35,17 @@ export default function LoginPageInner() {
 				throw new Error(data.error || 'Nie udało się zalogować')
 			}
 
-			// успех → уходим туда, откуда нас выкинул middleware
+			close()
+			message.success('Zalogowano pomyślnie ✅', 2, { position: 'topCenter' })
+
 			router.push(redirect)
 		} catch (err) {
 			console.error('Login error:', err)
+			close()
 			setError(err.message)
+			message.error(err.message || 'Nie udało się zalogować', 3, {
+				position: 'topCenter',
+			})
 		} finally {
 			setLoading(false)
 		}

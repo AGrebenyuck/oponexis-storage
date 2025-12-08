@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { prisma } from '../../../../lib/prisma'
 import UploadPhotoButton from '../UploadPhotoButton'
 import BatchEditForm from './BatchEditForm'
+import BatchPhotosGallery from './BatchPhotosGallery'
 import MovementForm from './MovementForm'
-import PhotoActions from './PhotoActions'
 
 async function getBatch(id) {
 	const batch = await prisma.tireBatch.findUnique({
@@ -105,46 +105,15 @@ export default async function BatchDetailsPage({ params }) {
 					<UploadPhotoButton batchId={batch.id} />
 				</div>
 
-				{batch.photos.length === 0 ? (
-					<p className='text-xs text-slate-400'>
-						Brak zdjęć dla tej partii. Dodaj przynajmniej jedno zdjęcie.
-					</p>
-				) : (
-					<div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3'>
-						{batch.photos.map(photo => (
-							<div
-								key={photo.id}
-								className='border border-slate-800 rounded-lg overflow-hidden bg-slate-900/60 flex flex-col'
-							>
-								<div className='aspect-[4/3] bg-slate-900'>
-									<img
-										src={photo.url}
-										alt='Zdjęcie opon'
-										className='h-full w-full object-cover'
-									/>
-								</div>
-								<div className='p-2 flex items-center justify-between gap-2 text-[10px]'>
-									<span
-										className={
-											'inline-flex items-center rounded-full px-2 py-0.5 border ' +
-											(photo.isMain
-												? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/40'
-												: 'bg-slate-800/60 text-slate-300 border-slate-600')
-										}
-									>
-										{photo.isMain ? 'główne zdjęcie' : 'pomocnicze'}
-									</span>
-									<PhotoActions photoId={photo.id} isMain={photo.isMain} />
-								</div>
-							</div>
-						))}
-					</div>
-				)}
+				<BatchPhotosGallery photos={batch.photos} />
 			</div>
 
 			{/* Ruchy magazynowe */}
 			<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-				<MovementForm batchId={batch.id} />
+				<MovementForm
+					batchId={batch.id}
+					quantityAvailable={batch.quantityAvailable}
+				/>
 
 				<div className='border border-slate-800 rounded-xl bg-slate-900/40 p-3 space-y-2 text-xs md:text-sm'>
 					<div className='flex items-center justify-between'>

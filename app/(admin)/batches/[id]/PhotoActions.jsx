@@ -1,30 +1,43 @@
+// app/(admin)/batches/[id]/PhotoActions.jsx
 'use client'
 
+import message from '../../../../components/message'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function PhotoActions({ photoId, isMain }) {
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState(null)
 	const router = useRouter()
 
 	async function setAsMain() {
 		setLoading(true)
-		setError(null)
+		const close = message.loading('Ustawianie głównego zdjęcia...', {
+			position: 'topRight',
+		})
+
 		try {
 			const res = await fetch(`/api/photos/${photoId}`, {
 				method: 'PATCH',
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Błąd przy ustawianiu głównego zdjęcia')
+				throw new Error(data?.error || 'Błąd przy ustawianiu głównego zdjęcia')
 			}
 
+			close()
+			message.success('Ustawiono jako główne ✅', 2, { position: 'topRight' })
 			router.refresh()
 		} catch (err) {
 			console.error('setAsMain error:', err)
-			setError(err.message)
+			close()
+			message.error(err.message || 'Błąd przy ustawianiu głównego zdjęcia', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setLoading(false)
 		}
@@ -34,21 +47,35 @@ export default function PhotoActions({ photoId, isMain }) {
 		if (!confirm('Na pewno chcesz usunąć to zdjęcie?')) return
 
 		setLoading(true)
-		setError(null)
+		const close = message.loading('Usuwanie zdjęcia...', {
+			position: 'topRight',
+		})
+
 		try {
 			const res = await fetch(`/api/photos/${photoId}`, {
 				method: 'DELETE',
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Błąd przy usuwaniu zdjęcia')
+				throw new Error(data?.error || 'Błąd przy usuwaniu zdjęcia')
 			}
 
+			close()
+			message.success('Zdjęcie zostało usunięte', 2, {
+				position: 'topRight',
+			})
 			router.refresh()
 		} catch (err) {
 			console.error('removePhoto error:', err)
-			setError(err.message)
+			close()
+			message.error(err.message || 'Błąd przy usuwaniu zdjęcia', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setLoading(false)
 		}
@@ -76,7 +103,6 @@ export default function PhotoActions({ photoId, isMain }) {
 					usuń
 				</button>
 			</div>
-			{error && <span className='text-red-400'>{error}</span>}
 		</div>
 	)
 }

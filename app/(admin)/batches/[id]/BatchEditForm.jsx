@@ -1,14 +1,13 @@
 // app/(admin)/batches/[id]/BatchEditForm.jsx
 'use client'
 
+import message from '../../../../components/message'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function BatchEditForm({ batch }) {
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState(null)
-	const [success, setSuccess] = useState(false)
 
 	const [form, setForm] = useState({
 		type: batch.type || 'STOCK',
@@ -26,15 +25,15 @@ export default function BatchEditForm({ batch }) {
 
 	function updateField(field, value) {
 		setForm(prev => ({ ...prev, [field]: value }))
-		setSuccess(false)
-		setError(null)
 	}
 
 	async function handleSubmit(e) {
 		e.preventDefault()
 		setLoading(true)
-		setError(null)
-		setSuccess(false)
+
+		const close = message.loading('Zapisywanie zmian...', {
+			position: 'topRight',
+		})
 
 		try {
 			const res = await fetch(`/api/batches/${batch.id}`, {
@@ -46,25 +45,26 @@ export default function BatchEditForm({ batch }) {
 			let data = null
 			try {
 				data = await res.json()
-			} catch (e) {
-				// если пришёл не-JSON — просто логируем
+			} catch {
 				console.warn('PATCH /api/batches response is not JSON')
 			}
 
 			if (!res.ok || !data?.ok) {
 				const msg = data?.error || `Błąd podczas zapisu (status ${res.status})`
-
-				console.log(res)
-
 				throw new Error(msg)
 			}
 
-			setSuccess(true)
-			// подтягиваем свежие данные сервера
+			close()
+			message.success('Zmiany zostały zapisane ✅', 2, {
+				position: 'topRight',
+			})
 			router.refresh()
 		} catch (err) {
 			console.error('[BatchEditForm] submit error:', err)
-			setError(err.message || 'Błąd podczas zapisu zmian')
+			close()
+			message.error(err.message || 'Błąd podczas zapisu zmian', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setLoading(false)
 		}
@@ -81,10 +81,6 @@ export default function BatchEditForm({ batch }) {
 				<h3 className='text-sm font-semibold text-slate-100'>
 					Dane partii (edycja)
 				</h3>
-				{success && (
-					<span className='text-xs text-emerald-400'>✔ Zapisano zmiany</span>
-				)}
-				{error && <span className='text-xs text-red-400'>{error}</span>}
 			</div>
 
 			<div className='grid grid-cols-1 md:grid-cols-2 gap-3'>

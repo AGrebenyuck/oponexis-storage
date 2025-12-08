@@ -1,5 +1,7 @@
+// app/(admin)/batches/BatchRowActions.jsx
 'use client'
 
+import message from '../../../components/message'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
@@ -17,7 +19,6 @@ export default function BatchRowActions({ batchId }) {
 		setOpen(prev => !prev)
 	}
 
-	// закрытие по клику вне меню
 	useEffect(() => {
 		if (!open) return
 
@@ -47,14 +48,19 @@ export default function BatchRowActions({ batchId }) {
 		if (!file) return
 
 		if (file.size && file.size > MAX_FILE_SIZE) {
-			alert(
-				`Plik "${file.name}" jest zbyt duży. Maksymalny rozmiar to 10 MB (limit Cloudinary).`
+			message.warning(
+				`Plik "${file.name}" jest zbyt duży. Maksymalny rozmiar to 10 MB.`,
+				4,
+				{ position: 'topRight' }
 			)
 			e.target.value = ''
 			return
 		}
 
 		setLoadingUpload(true)
+		const close = message.loading('Przesyłanie zdjęcia...', {
+			position: 'topRight',
+		})
 
 		try {
 			const fd = new FormData()
@@ -65,15 +71,26 @@ export default function BatchRowActions({ batchId }) {
 				body: fd,
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Nie udało się przesłać zdjęcia.')
+				throw new Error(data?.error || 'Nie udało się przesłać zdjęcia.')
 			}
 
+			close()
+			message.success('Zdjęcie zostało dodane ✅', 2, {
+				position: 'topRight',
+			})
 			router.refresh()
 		} catch (err) {
 			console.error('Upload photo error:', err)
-			alert(err.message || 'Nie udało się przesłać zdjęcia.')
+			close()
+			message.error(err.message || 'Nie udało się przesłać zdjęcia.', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setLoadingUpload(false)
 			e.target.value = ''
@@ -85,25 +102,38 @@ export default function BatchRowActions({ batchId }) {
 		const ok = window.confirm(
 			'Na pewno chcesz usunąć tę partię oraz wszystkie powiązane zdjęcia i ruchy magazynowe?'
 		)
-
 		if (!ok) return
 
 		setLoadingDelete(true)
+		const close = message.loading('Usuwanie partii...', {
+			position: 'topRight',
+		})
 
 		try {
 			const res = await fetch(`/api/batches/${batchId}`, {
 				method: 'DELETE',
 			})
 
+			let data = null
+			try {
+				data = await res.json()
+			} catch {}
+
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.error || 'Nie udało się usunąć partii.')
+				throw new Error(data?.error || 'Nie udało się usunąć partii.')
 			}
 
+			close()
+			message.success('Partia została usunięta', 2, {
+				position: 'topRight',
+			})
 			router.refresh()
 		} catch (err) {
 			console.error('Delete batch error:', err)
-			alert(err.message || 'Nie udało się usunąć partii.')
+			close()
+			message.error(err.message || 'Nie udało się usunąć partii.', 3, {
+				position: 'topRight',
+			})
 		} finally {
 			setLoadingDelete(false)
 			setOpen(false)
@@ -112,7 +142,6 @@ export default function BatchRowActions({ batchId }) {
 
 	return (
 		<div ref={menuRef} className='relative inline-block text-left'>
-			{/* скрытый input для загрузки фото */}
 			<input
 				ref={fileInputRef}
 				type='file'
