@@ -10,6 +10,7 @@
 		"postinstall": "prisma generate"
 	},
 	"dependencies": {
+		"@napi-rs/canvas": "^0.1.84",
 		"@prisma/client": "^6.19.0",
 		"cloudinary": "^2.8.0",
 		"clsx": "^2.1.1",
