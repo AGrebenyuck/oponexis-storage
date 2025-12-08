@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { bot } from '../../../lib/telegram/bot'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
